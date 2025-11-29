@@ -1,0 +1,101 @@
+import numpy as np
+from itertools import combinations_with_replacement
+
+class Sample:
+    def __init__(self, x0, p, options):
+        """
+        Initialize a sample set.
+        x0      : initial point (n,)
+        p       : subspace dimension (<= n)
+        options : dict with options, must contain 'tr_delta'
+        """
+        self.n = len(x0)
+        self.p = p
+
+        # initial orthonormal subspace
+        Q, _ = np.linalg.qr(np.random.randn(self.n, self.p))
+        Y = x0.reshape(self.n, 1) + options['tr_delta'] * Q
+        self.Y = np.vstack([Y.T, x0.reshape(1, self.n)])  # (p+1) × n
+        self.fY = np.full(len(self.Y), np.nan)
+        self._updateQR()
+
+    @property
+    def m(self):
+        return len(self.Y)
+
+    def Ycentered(self, center):
+        return self.Y - center
+
+    def distance(self, center):
+        return np.linalg.norm(self.Ycentered(center), axis=1)
+
+    def addpoint(self, point):
+        self.Y = np.vstack([self.Y, point])
+        self.fY = np.append(self.fY, np.nan)
+        self._updateQR()
+
+    def auto_delete(self, model, options):
+        distance = self.distance(model.center)
+        farthest = np.argsort(distance)[-(self.m - options['sample_min']):]
+        toofar = np.where(distance > options['sample_toremove'] * model.delta)[0]
+        if toofar.size == 0 and self.m > options['sample_max']:
+            toremove = farthest[-(self.m - options['sample_max']):]
+        else:
+            toremove = np.intersect1d(farthest, toofar)
+        self.Y = np.delete(self.Y, toremove, axis=0)
+        self.fY = np.delete(self.fY, toremove)
+        self._updateQR()
+
+    def _updateQR(self):
+        if self.m <= 1:
+            self.Q = np.eye(self.n, self.p)
+            return
+        Yc = self.Y - self.Y[0]
+        Qfull, _ = np.linalg.qr(Yc.T)
+        self.Q = Qfull[:, :self.p]
+
+    # -----------------------------
+    # GEOMETRY IMPROVEMENT USING LAGRANGE POLYNOMIALS
+    # -----------------------------
+    def improve_geometry(self, center, Q, delta):
+        """
+        Return a new point in the trust region that maximizes
+        the norm of Lagrange polynomials in the subspace.
+
+        center : current trust-region center
+        Q      : n × p orthonormal subspace
+        delta  : trust-region radius
+        """
+        # Project current samples into subspace coordinates
+        Z = (self.Y - center) @ Q  # m × p
+
+        # Construct all linear Lagrange polynomials
+        m, p = Z.shape
+        # For p-dimensional subspace, the basis of linear polynomials is: [1, z1, ..., zp]
+        # The Vandermonde matrix for samples
+        V = np.hstack([np.ones((m, 1)), Z])  # m × (p+1)
+
+        # Compute Lagrange coefficients for each sample
+        try:
+            L_coefs = np.linalg.inv(V)  # (p+1) × m
+        except np.linalg.LinAlgError:
+            # If V is singular, fall back to pseudo-inverse
+            L_coefs = np.linalg.pinv(V)
+
+        # The "poorest" Lagrange polynomial is the one with largest norm
+        norms = np.linalg.norm(L_coefs, axis=0)
+        idx = np.argmax(norms)
+
+        # Evaluate new point in subspace: pick along direction of max Lagrange polynomial
+        direction = L_coefs[:, idx][1:]  # skip constant term
+        if np.linalg.norm(direction) < 1e-12:
+            return None
+
+        direction = direction / np.linalg.norm(direction)
+        new_point = center + delta * Q @ direction
+
+        # Ensure new point is not duplicate
+        if any(np.allclose(new_point, y) for y in self.Y):
+            return None
+
+        return new_point
