@@ -17,7 +17,7 @@ class Sample:
         Y = x0.reshape(self.n, 1) + options['tr_delta'] * Q
         self.Y = np.vstack([Y.T, x0.reshape(1, self.n)])  # (p+1) × n
         self.fY = np.full(len(self.Y), np.nan)
-        self._updateQR()
+        self.Q = Q
 
     @property
     def m(self):
@@ -32,19 +32,17 @@ class Sample:
     def addpoint(self, point):
         self.Y = np.vstack([self.Y, point])
         self.fY = np.append(self.fY, np.nan)
-        self._updateQR()
 
     def auto_delete(self, model, options):
         distance = self.distance(model.center)
         farthest = np.argsort(distance)[-(self.m - options['sample_min']):]
-        toofar = np.where(distance > options['sample_toremove'] * model.delta)[0]
+        toofar = np.where(distance > model.delta)[0]
         if toofar.size == 0 and self.m > options['sample_max']:
             toremove = farthest[-(self.m - options['sample_max']):]
         else:
             toremove = np.intersect1d(farthest, toofar)
         self.Y = np.delete(self.Y, toremove, axis=0)
         self.fY = np.delete(self.fY, toremove)
-        self._updateQR()
 
     def _updateQR(self):
         A = np.random.randn(self.n, self.p)
@@ -63,6 +61,7 @@ class Sample:
         Q      : n × p orthonormal subspace
         delta  : trust-region radius
         """
+
         # Project current samples into subspace coordinates
         Z = (self.Y - center) @ Q  # m × p
 

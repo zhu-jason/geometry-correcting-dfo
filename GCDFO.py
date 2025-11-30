@@ -91,11 +91,12 @@ class gcdfo:
                 self._success = 1
                 self.info['success'] += 1
                 self.model.center = self.samp.Y[-1]
+                self.samp.auto_delete(self.model, self.options)
+                self.samp._updateQR()
             else:
                 self._success = 0
 
             self.model.update_delta(rho, stepSize2delta, self.options)
-            self.samp.auto_delete(self.model, self.options)
 
             if self.options['verbosity'] >= 2:
                 print("| {:5d} | {} | {:11.5e} | {:9.6f} | {:9.6f} | {} |"

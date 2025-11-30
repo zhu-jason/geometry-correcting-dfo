@@ -17,40 +17,30 @@ from GCDFO import gcdfo
 from funcs_defs import arwhead, rosen, sphere
 
 
+np.random.seed(42)
+
 # choose function
-#func = arwhead
+func = arwhead
 #func = rosen
-func = sphere
+#func = sphere
 
 # starting point
 x0 = np.ones(100) * 0.5
-#x0 = np.repeat(np.array([[-1.2, 1]]), 1, axis=0).flatten()
+#x0 = np.repeat(np.array([[-1.2, 1]]), 5, axis=0).flatten()
 
 # overwrite default settings
 customOptions = {'alg_model': 'quadratic',
                 'alg_TRsub': 'exact',
                 'tr_delta': 0.5,
-                'sample_toremove': 30,
+                'sample_toremove': 1,
                 'stop_iter': 10000,
                 'stop_predict': 0.,
                 'verbosity': 2,
                 }
 
 # optimization with class function
-# x, fx, info = dfo_tr.optimize(func, x0, customOptions)
-
-# optimization in ask and tell frameword
-p = 30
-optimizer = gcdfo(x0, p, customOptions)
-while True:
-    x = optimizer.ask()
-    fx = [func(x[0])]
-    optimizer.tell(x,fx)
-    if optimizer._stop():
-        break
-idx = np.nanargmin(optimizer.samp.fY)
-x = optimizer.samp.Y[idx]
-fx = optimizer.samp.fY[idx]
+p = len(x0) // 3
+x, fx, info = gcdfo.optimize(func, x0, p, customOptions)
 
 # print result
 print("Printing result for function " + func.__name__ + ":")
