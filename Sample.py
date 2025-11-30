@@ -47,11 +47,8 @@ class Sample:
         self._updateQR()
 
     def _updateQR(self):
-        if self.m <= 1:
-            self.Q = np.eye(self.n, self.p)
-            return
-        Yc = self.Y - self.Y[0]
-        Qfull, _ = np.linalg.qr(Yc.T)
+        A = np.random.randn(self.n, self.p)
+        Qfull, _ = np.linalg.qr(A)
         self.Q = Qfull[:, :self.p]
 
     # -----------------------------

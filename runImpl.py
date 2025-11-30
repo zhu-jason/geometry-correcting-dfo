@@ -14,15 +14,16 @@ print(os.listdir(os.path.dirname(__file__)))
 
 import numpy as np
 from GCDFO import gcdfo
-from funcs_defs import arwhead, rosen
+from funcs_defs import arwhead, rosen, sphere
 
 
 # choose function
-func = arwhead
+#func = arwhead
 #func = rosen
+func = sphere
 
 # starting point
-x0 = np.ones(10) * 0.5
+x0 = np.ones(100) * 0.5
 #x0 = np.repeat(np.array([[-1.2, 1]]), 1, axis=0).flatten()
 
 # overwrite default settings
@@ -39,7 +40,7 @@ customOptions = {'alg_model': 'quadratic',
 # x, fx, info = dfo_tr.optimize(func, x0, customOptions)
 
 # optimization in ask and tell frameword
-p = 5
+p = 30
 optimizer = gcdfo(x0, p, customOptions)
 while True:
     x = optimizer.ask()

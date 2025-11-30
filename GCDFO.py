@@ -110,7 +110,7 @@ class gcdfo:
         self.model.fit(self.samp)
 
         # geometry improvement only if step unsuccessful
-        if self._success == 0:
+        if not self._success:
             geom_point = self.samp.improve_geometry(self.model.center, self.samp.Q, self.model.delta)
             if geom_point is not None:
                 self.samp.addpoint(geom_point)
