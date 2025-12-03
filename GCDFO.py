@@ -41,9 +41,17 @@ class gcdfo:
         self.options['p'] = self.p
         self.info = {'start_time': time.time(), 'iteration': 0, 'success': 0, 'nfeval': 0}
 
+        # required sample size depends on model order
+        if self.options['alg_model'] == 'quadratic':
+            self.required_sample_size = (self.p + 1) * (self.p + 2) // 2
+        else:  # treat everything else as linear
+            self.required_sample_size = self.p + 1
+
         # initial sample
         self.samp = Sample(x0, self.p, self.options)
         self.model = ApproximationModel(self.p, self.options)
+
+        
 
     # -----------------------------
     # ASK / TELL INTERFACE
@@ -79,47 +87,78 @@ class gcdfo:
                               np.nanmin(self.samp.fY),
                               self.model.delta,
                               self.samp.m))
-            self._success = 1
         else:
-            # predicted vs actual reduction
-            rho = (self.model.c - self.samp.fY[-1]) / self.info['predicted_decrease']
-            stepSize = np.linalg.norm(self.samp.Y[-1] - self.model.center)
-            stepSize2delta = stepSize / self.model.delta
+            # fit model
+            self.model.fit(self.samp)
 
+            # solve trust-region subproblem
+            new_point, self.info['predicted_decrease'] = self.model.minimize(self.samp)
+            self.info['iteration'] += 1
+
+            # predicted vs actual reduction
+            # Why is this the correct calculation for RHO? 
+            rho = (self.model.c - self.samp.fY[-1]) / self.info['predicted_decrease']
+
+            # If successful replace point and expand TR
             if rho >= self.options['tr_toaccept'] and \
-               np.linalg.norm(self.model.g) >= self.options['tr_toexpand2'] * self.model.delta:
+                np.linalg.norm(self.model.g) >= self.options['tr_toexpand2'] * self.model.delta:
                 self._success = 1
                 self.info['success'] += 1
-                self.model.center = self.samp.Y[-1]
+                self.model.center = new_point
+                # TODO: NEED TO SHIFT INTERPOLATION SET APPROPRIATELY!
+                self.samp.addpoint(new_point)
                 self.samp.auto_delete(self.model, self.options)
                 self.samp._updateQR()
-            else:
+                self.model.delta *= self.options['tr_expand']
+            else: # If unsuccessful, try to improve geometry
                 self._success = 0
+                center = self.model.center
+                delta = self.model.delta
+                m = self.samp.m
+                sample_size = self.required_sample_size
 
-            self.model.update_delta(rho, stepSize2delta, self.options)
+                # Geometry correction steps as in Algorithm 4:
+                # 1) add point if sample set is too small
+                # 2) replace a far point if any lies outside the TR
+                # 3) replace a "bad" point identified by Lagrange polynomials
+                # 4) if geometry is good, shrink TR radius and refresh subspace
 
+                if new_point is not None:
+                    if m < sample_size:
+                        # Geometry correction by adding a point
+                        self.samp.addpoint(new_point)
+                    else:
+                        # Check for far point
+                        dist = self.samp.distance(center)
+                        j_star = np.argmax(dist)
+                        if dist[j_star] > delta:
+                            # Geometry correction by replacing a far point
+                            self.samp.Y[j_star] = new_point
+                            self.samp.fY[j_star] = np.nan
+                        elif bad_idx is not None:
+                            # Geometry correction by replacing a "bad" point
+                            self.samp.Y[bad_idx] = new_point
+                            self.samp.fY[bad_idx] = np.nan
+                        else:
+                            # Geometry is good: shrink TR and refresh subspace
+                            self.model.delta *= self.options['tr_shrink']
+                            self.samp._updateQR()
+                else:
+                    # No improving geometry step found: treat geometry as good
+                    self.model.delta *= self.options['tr_shrink']
+                    self.samp._updateQR()
+            
+            # Print iteration report
             if self.options['verbosity'] >= 2:
                 print("| {:5d} | {} | {:11.5e} | {:9.6f} | {:9.6f} | {} |"
-                      .format(self.info['iteration'],
-                              self._success,
-                              self.samp.fY[-1],
-                              self.model.delta,
-                              rho,
-                              self.samp.m))
+                        .format(self.info['iteration'],
+                                self._success,
+                                self.samp.fY[-1],
+                                self.model.delta,
+                                rho,
+                                self.samp.m))
 
-        # fit model
-        self.model.fit(self.samp)
 
-        # geometry improvement only if step unsuccessful
-        if not self._success:
-            geom_point = self.samp.improve_geometry(self.model.center, self.samp.Q, self.model.delta)
-            if geom_point is not None:
-                self.samp.addpoint(geom_point)
-
-        # solve trust-region subproblem
-        x1, self.info['predicted_decrease'] = self.model.minimize(self.samp)
-        self.samp.addpoint(x1)
-        self.info['iteration'] += 1
 
     # -----------------------------
     # STOPPING CRITERIA
