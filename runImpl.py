@@ -21,11 +21,11 @@ np.random.seed(42)
 
 # choose function
 #func = arwhead
-#func = rosen
-func = sphere
+func = rosen
+#func = sphere
 
 # starting point
-x0 = np.ones(10)
+x0 = np.ones(10) / 2
 #x0 = np.repeat(np.array([[-1.2, 1]]), 5, axis=0).flatten()
 
 # overwrite default settings

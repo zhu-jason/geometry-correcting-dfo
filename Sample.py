@@ -35,6 +35,11 @@ class Sample:
         self.Y = np.vstack([self.Y, point])
         self.fY = np.append(self.fY, np.nan)
 
+    def deletepoint(self, idx):
+        self.Y = np.delete(self.Y, idx, axis=0)
+        self.fY = np.delete(self.fY, idx)
+
+    # Originally from Liyuan's code -- removes several points all at once 
     def auto_delete(self, model, options):
         distance = self.distance(model.center)
         farthest = np.argsort(distance)[-(self.m - options['sample_min']):]

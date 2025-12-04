@@ -24,7 +24,7 @@ class gcdfo:
             'tr_toexpand2': 0.5,
             'tr_expand': 1.3,
             'tr_toshrink': -5e-3,
-            'tr_shrink': 0.99,
+            'tr_shrink': 1/1.3,
             'stop_iter': 2000,
             'stop_nfeval': 2000,
             'stop_delta': 1e-6,
@@ -94,6 +94,10 @@ class gcdfo:
         else:
             # fit model
             self.model.fit(self.samp)
+            center = self.model.center
+            delta = self.model.delta
+            m = self.samp.m
+            sample_size = self.required_sample_size
 
             # solve trust-region subproblem
             new_point, self.info['predicted_decrease'] = self.model.minimize(self.samp)
@@ -110,19 +114,16 @@ class gcdfo:
                 self.info['success'] += 1
 
                 # replace furthest interpolation point
-                dist = self.samp.distance(new_point)
+                dist = self.samp.distance(center)
                 j_star = np.argmax(dist)
-                self.samp.Y[j_star] = new_point
-                self.samp.fY[j_star] = np.nan
+                self.samp.deletepoint(j_star)
                 self.model.center = new_point
-                #self.samp._updateQR()
-                self.model.delta = self.model.delta / self.options['tr_expand']
+
+                # Refresh subspace
+                self.samp._updateQR()
+                self.model.delta = self.model.delta * self.options['tr_expand']
             else: # If unsuccessful, try to improve geometry
                 self._success = 0
-                center = self.model.center
-                delta = self.model.delta
-                m = self.samp.m
-                sample_size = self.required_sample_size
 
                 # Geometry correction steps as in Algorithm 4:
                 # 1) add point if sample set is too small
@@ -130,35 +131,31 @@ class gcdfo:
                 # 3) replace a "bad" point identified by Lagrange polynomials
                 # 4) if geometry is good, shrink TR radius and refresh subspace
 
-                if new_point is not None:
-                    if m < sample_size:
-                        # Geometry correction by adding a point
+                if m < sample_size:
+                    self.samp.addpoint(new_point)
+                else:
+                    dist = self.samp.distance(center)
+                    j_star = np.argmax(dist)
+                    replacement_point, bad_idx = self.samp.improve_geometry(center, self.samp.Q, delta)
+                    if dist[j_star] > delta:
+                        self.samp.deletepoint(j_star)
                         self.samp.addpoint(new_point)
+                    elif bad_idx is not None:
+                        # Geometry correction by replacing a "bad" point
+                        self.samp.deletepoint(bad_idx)
+                        self.samp.addpoint(replacement_point)
+                        #self.samp.auto_delete(self.model, self.options)  #placeholder
                     else:
-                        # Check for far point
-                        dist = self.samp.distance(center)
-                        j_star = np.argmax(dist)
-                        #bad_idx = 0 # placeholder for bad geometry correcting step
-                        if dist[j_star] > delta:
-                            # Geometry correction by replacing a far point
-                            self.samp.Y[j_star] = new_point
-                            self.samp.fY[j_star] = np.nan
-                        elif bad_idx is not None:
-                            # Geometry correction by replacing a "bad" point
-                            self.samp.Y[bad_idx] = new_point
-                            self.samp.fY[bad_idx] = np.nan
-                            self.samp.auto_delete(self.model, self.options)  #placeholder
-                        else:
-                            # Geometry is good: shrink TR and refresh subspace
-                            self.model.delta *= self.options['tr_shrink']
-                            self.samp._updateQR()
+                        # Geometry is good: shrink TR and refresh subspace
+                        self.model.delta = self.model.delta * self.options['tr_shrink']
+                        self.samp._updateQR()
 
             # Print iteration report
             if self.options['verbosity'] >= 2:
                 print("| {:5d} | {} | {:11.5e} | {:9.6f} | {:9.6f} | {} |"
                         .format(self.info['iteration'],
                                 self._success,
-                                self.samp.fY[-1],
+                                self.samp.fY[-2],
                                 self.model.delta,
                                 rho,
                                 self.samp.m))
