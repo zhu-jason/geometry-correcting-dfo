@@ -18,7 +18,7 @@ class ApproximationModel:
 
         # trust region parameters
         self.center = np.zeros(n)
-        self.delta = 0.0
+        self.delta = 0.5
 
     # -------------------------------------------
     # FIT MODEL BASED ON SAMPLE

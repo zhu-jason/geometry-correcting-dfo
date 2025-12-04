@@ -7,7 +7,7 @@ from ApproximationModel import ApproximationModel
 class gcdfo:
     def __init__(self, x0, p=None, options=None):
         self.n = len(x0)
-        self.p = p or self.n
+        self.p = min(p, self.n)
 
         # default options
         self.options = {
@@ -24,7 +24,7 @@ class gcdfo:
             'tr_toexpand2': 0.5,
             'tr_expand': 1.3,
             'tr_toshrink': -5e-3,
-            'tr_shrink': 0.95,
+            'tr_shrink': 0.99,
             'stop_iter': 2000,
             'stop_nfeval': 2000,
             'stop_delta': 1e-6,
@@ -51,7 +51,7 @@ class gcdfo:
         self.samp = Sample(x0, self.p, self.options)
         self.model = ApproximationModel(self.p, self.options)
 
-        
+
 
     # -----------------------------
     # ASK / TELL INTERFACE
@@ -87,6 +87,10 @@ class gcdfo:
                               np.nanmin(self.samp.fY),
                               self.model.delta,
                               self.samp.m))
+
+            self.info['predicted_decrease'] = np.inf
+
+            self.info['iteration'] = 1
         else:
             # fit model
             self.model.fit(self.samp)
@@ -96,7 +100,7 @@ class gcdfo:
             self.info['iteration'] += 1
 
             # predicted vs actual reduction
-            # Why is this the correct calculation for RHO? 
+            # Why is this the correct calculation for RHO?
             rho = (self.model.c - self.samp.fY[-1]) / self.info['predicted_decrease']
 
             # If successful replace point and expand TR
@@ -104,12 +108,15 @@ class gcdfo:
                 np.linalg.norm(self.model.g) >= self.options['tr_toexpand2'] * self.model.delta:
                 self._success = 1
                 self.info['success'] += 1
+
+                # replace furthest interpolation point
+                dist = self.samp.distance(new_point)
+                j_star = np.argmax(dist)
+                self.samp.Y[j_star] = new_point
+                self.samp.fY[j_star] = np.nan
                 self.model.center = new_point
-                # TODO: NEED TO SHIFT INTERPOLATION SET APPROPRIATELY!
-                self.samp.addpoint(new_point)
-                self.samp.auto_delete(self.model, self.options)
-                self.samp._updateQR()
-                self.model.delta *= self.options['tr_expand']
+                #self.samp._updateQR()
+                self.model.delta = self.model.delta  self.options['tr_expand']
             else: # If unsuccessful, try to improve geometry
                 self._success = 0
                 center = self.model.center
@@ -131,23 +138,21 @@ class gcdfo:
                         # Check for far point
                         dist = self.samp.distance(center)
                         j_star = np.argmax(dist)
+                        #bad_idx = 0 # placeholder for bad geometry correcting step
                         if dist[j_star] > delta:
                             # Geometry correction by replacing a far point
                             self.samp.Y[j_star] = new_point
                             self.samp.fY[j_star] = np.nan
-                        elif bad_idx is not None:
+                        #elif bad_idx is not None:
                             # Geometry correction by replacing a "bad" point
-                            self.samp.Y[bad_idx] = new_point
-                            self.samp.fY[bad_idx] = np.nan
+                            #self.samp.Y[bad_idx] = new_point
+                            #self.samp.fY[bad_idx] = np.nan
+                        #    self.samp.auto_delete(self.model, self.options)  #placeholder
                         else:
                             # Geometry is good: shrink TR and refresh subspace
                             self.model.delta *= self.options['tr_shrink']
                             self.samp._updateQR()
-                else:
-                    # No improving geometry step found: treat geometry as good
-                    self.model.delta *= self.options['tr_shrink']
-                    self.samp._updateQR()
-            
+
             # Print iteration report
             if self.options['verbosity'] >= 2:
                 print("| {:5d} | {} | {:11.5e} | {:9.6f} | {:9.6f} | {} |"
@@ -157,8 +162,6 @@ class gcdfo:
                                 self.model.delta,
                                 rho,
                                 self.samp.m))
-
-
 
     # -----------------------------
     # STOPPING CRITERIA

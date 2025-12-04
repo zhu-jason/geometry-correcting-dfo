@@ -20,12 +20,12 @@ from funcs_defs import arwhead, rosen, sphere
 np.random.seed(42)
 
 # choose function
-func = arwhead
+#func = arwhead
 #func = rosen
-#func = sphere
+func = sphere
 
 # starting point
-x0 = np.ones(100) * 0.5
+x0 = np.ones(10)
 #x0 = np.repeat(np.array([[-1.2, 1]]), 5, axis=0).flatten()
 
 # overwrite default settings
@@ -39,7 +39,7 @@ customOptions = {'alg_model': 'quadratic',
                 }
 
 # optimization with class function
-p = len(x0) // 3
+p = len(x0)
 x, fx, info = gcdfo.optimize(func, x0, p, customOptions)
 
 # print result
