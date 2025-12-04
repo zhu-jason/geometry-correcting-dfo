@@ -116,7 +116,7 @@ class gcdfo:
                 self.samp.fY[j_star] = np.nan
                 self.model.center = new_point
                 #self.samp._updateQR()
-                self.model.delta = self.model.delta  self.options['tr_expand']
+                self.model.delta = self.model.delta / self.options['tr_expand']
             else: # If unsuccessful, try to improve geometry
                 self._success = 0
                 center = self.model.center
@@ -143,11 +143,11 @@ class gcdfo:
                             # Geometry correction by replacing a far point
                             self.samp.Y[j_star] = new_point
                             self.samp.fY[j_star] = np.nan
-                        #elif bad_idx is not None:
+                        elif bad_idx is not None:
                             # Geometry correction by replacing a "bad" point
-                            #self.samp.Y[bad_idx] = new_point
-                            #self.samp.fY[bad_idx] = np.nan
-                        #    self.samp.auto_delete(self.model, self.options)  #placeholder
+                            self.samp.Y[bad_idx] = new_point
+                            self.samp.fY[bad_idx] = np.nan
+                            self.samp.auto_delete(self.model, self.options)  #placeholder
                         else:
                             # Geometry is good: shrink TR and refresh subspace
                             self.model.delta *= self.options['tr_shrink']
