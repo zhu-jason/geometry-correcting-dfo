@@ -5,7 +5,7 @@ from Sample import Sample
 from ApproximationModel import ApproximationModel
 
 class gcdfo:
-    def __init__(self, x0, p=None, options=None):
+    def __init__(self, x0, p=None, options=None, geom_correcting = True):
         self.n = len(x0)
         self.p = p or self.n
 
@@ -14,9 +14,9 @@ class gcdfo:
             'alg_model': 'quadratic',
             'alg_TR': 'ball',
             'alg_TRsub': 'exact',
-            'sample_initial': self.n + 1,
-            'sample_min': int((self.n+1) * 1.1),
-            'sample_max': min(3000, (self.n+1)*(self.n+2)//2),
+            'sample_initial': self.p + 1,
+            'sample_min': int((self.p+1) * 1.1),
+            'sample_max': min(3000, (self.p+1)*(self.p+2)//2),
             'sample_toremove': 10,
             'tr_delta': 1.0,
             'tr_toaccept': 0.0,
@@ -29,7 +29,8 @@ class gcdfo:
             'stop_nfeval': 2000,
             'stop_delta': 1e-6,
             'stop_predict': 1e-8,
-            'verbosity': 2
+            'verbosity': 2,
+            'big_lambda': 3
         }
 
         if options:
@@ -38,12 +39,22 @@ class gcdfo:
                     raise ValueError(f"{key!r} is not a valid option name.")
                 self.options[key] = options[key]
 
+        self.geom_correcting = geom_correcting
         self.options['p'] = self.p
-        self.info = {'start_time': time.time(), 'iteration': 0, 'success': 0, 'nfeval': 0}
+        self.info = {
+            'start_time': time.time(), 
+            'iteration': 0, 
+            'success': 0, 
+            'nfeval': 0,
+            'best_objectives': [],  # Track best objective at each evaluation
+        }
 
         # initial sample
         self.samp = Sample(x0, self.p, self.options)
         self.model = ApproximationModel(self.p, self.options)
+        
+        # Track initial best (will be updated as evaluations come in)
+        self._best_obj = np.inf
 
     # -----------------------------
     # ASK / TELL INTERFACE
@@ -57,6 +68,8 @@ class gcdfo:
         idx = np.all(self.samp.Y == X[0], axis=1).argmax()
         self.samp.fY[idx] = np.mean(fX)
         self.info['nfeval'] += 1
+        
+        self.info['best_objectives'].append((self.info['nfeval'] + self.p, np.nanmin(self.samp.fY)))
 
         if np.any(np.isnan(self.samp.fY)):
             return
@@ -111,10 +124,15 @@ class gcdfo:
         self.model.fit(self.samp)
 
         # geometry improvement only if step unsuccessful
-        if not self._success:
-            geom_point = self.samp.improve_geometry(self.model.center, self.samp.Q, self.model.delta)
-            if geom_point is not None:
-                self.samp.addpoint(geom_point)
+        if self.geom_correcting:
+            if not self._success:
+                geom_point = self.samp.improve_geometry(self.model.center, self.samp.Q, self.model.delta)
+                if geom_point is not None:
+                    self.samp.auto_delete(self.model, self.options)
+                    self.samp.addpoint(geom_point)
+                else:
+                    #self.samp._updateQR()
+                    pass
 
         # solve trust-region subproblem
         x1, self.info['predicted_decrease'] = self.model.minimize(self.samp)
@@ -161,8 +179,8 @@ class gcdfo:
     # CLASS METHOD: OPTIMIZE
     # -----------------------------
     @classmethod
-    def optimize(cls, obj, x0, p=None, options=None):
-        optimizer = cls(x0, p, options)
+    def optimize(cls, obj, x0, p=None, options=None, geom_correcting = True):
+        optimizer = cls(x0, p, options, geom_correcting)
 
         while True:
             x = optimizer.ask()

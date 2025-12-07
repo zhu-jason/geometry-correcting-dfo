@@ -17,6 +17,7 @@ class Sample:
         Y = x0.reshape(self.n, 1) + options['tr_delta'] * Q
         self.Y = np.vstack([Y.T, x0.reshape(1, self.n)])  # (p+1) × n
         self.fY = np.full(len(self.Y), np.nan)
+        self.big_lambda = options['big_lambda']
         self.Q = Q
 
     @property
@@ -84,7 +85,12 @@ class Sample:
 
         # Evaluate new point in subspace: pick along direction of max Lagrange polynomial
         direction = L_coefs[:, idx][1:]  # skip constant term
+
         if np.linalg.norm(direction) < 1e-12:
+            return None
+        
+        # We are lambda poised!
+        if np.linalg.norm(direction) < self.big_lambda:
             return None
 
         direction = direction / np.linalg.norm(direction)

@@ -48,6 +48,8 @@
 
 import numpy as np
 
+
+
 def ackley(x):
     # The Ackley's function
     res = -20 * np.exp(-0.2 * np.sqrt(0.5 * sum(x**2))) - (
