@@ -14,18 +14,19 @@ print(os.listdir(os.path.dirname(__file__)))
 
 import numpy as np
 from GCDFO import gcdfo
-from funcs_defs import arwhead, rosen, sphere
+from funcs_defs import arwhead, rosen, sphere, beale, booth, bukin, ackley
 
 
 np.random.seed(42)
 
 # choose function
+# func = arwhead
+func = arwhead
 #func = arwhead
-func = rosen
-#func = sphere
 
 # starting point
-x0 = np.ones(10) / 2
+n = 100
+x0 = np.ones(n) * 0.5
 #x0 = np.repeat(np.array([[-1.2, 1]]), 5, axis=0).flatten()
 
 # overwrite default settings
@@ -37,12 +38,14 @@ customOptions = {'alg_model': 'quadratic',
                 'stop_predict': 0.,
                 'verbosity': 2,
                 }
-
 # optimization with class function
-p = len(x0)
+factor = 0.5
+p = int(factor * n)
 x, fx, info = gcdfo.optimize(func, x0, p, customOptions)
 
 # print result
 print("Printing result for function " + func.__name__ + ":")
 print("best point: {}, with obj: {:.6f}".format(
     np.around(x, decimals=5), float(fx)))
+print("hello")
+# print(info['best_objectives'])

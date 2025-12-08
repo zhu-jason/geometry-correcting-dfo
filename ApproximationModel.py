@@ -18,7 +18,7 @@ class ApproximationModel:
 
         # trust region parameters
         self.center = np.zeros(n)
-        self.delta = 0.0
+        self.delta = 0.5
 
     # -------------------------------------------
     # FIT MODEL BASED ON SAMPLE
@@ -50,7 +50,10 @@ class ApproximationModel:
         k = 1 + p
         for i in range(p):
             for j in range(i, p):
-                Hsub[i, j] = Hsub[j, i] = theta[k]
+                factor = 1
+                if i == j:
+                    factor = 2
+                Hsub[i, j] = Hsub[j, i] = factor * theta[k]
                 k += 1
 
         # lift to full space
@@ -74,12 +77,3 @@ class ApproximationModel:
 
         v = Q @ v_sub
         return self.center + v, -val
-
-    # -------------------------------------------
-    # TRUST REGION RADIUS UPDATE
-    # -------------------------------------------
-    def update_delta(self, rho, stepSize2delta, options):
-        if rho >= options['tr_toexpand'] and np.linalg.norm(self.g) >= options['tr_toexpand2'] * self.delta:
-            self.delta *= options['tr_expand']
-        elif (0 <= rho < options['tr_toaccept']) or rho < options['tr_toshrink']:
-            self.delta *= options['tr_shrink']
