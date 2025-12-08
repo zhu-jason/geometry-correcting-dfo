@@ -23,11 +23,11 @@ from funcs_defs import arwhead, rosen, sphere, beale, booth, bukin, ackley
 # choose function
 # func = arwhead
 # func = rosen
-func = arwhead
+func = rosen
 
 # starting point
-n = 100
-subspace_dims = [5, 10, 25, 50]
+n = 50
+subspace_dims = [50]
 x0 = np.random.randn(n)
 #x0 = np.repeat(np.array([[-1.2, 1]]), 5, axis=0).flatten()
 
@@ -35,8 +35,8 @@ x0 = np.random.randn(n)
 customOptions = {'alg_model': 'quadratic',
             'alg_TRsub': 'exact',
             'tr_delta': 0.5,
-            'sample_toremove': 1,
-            'stop_iter': 3000,
+            'stop_iter': 1000,
+            'stop_nfeval': 1000,
             'stop_predict': 0.,
             'verbosity': -1,
             'big_lambda': 1.5
@@ -68,12 +68,12 @@ for i, curve in enumerate(gc_info):
     plt.semilogy(xs, ys, linestyle='--', color=color,
              label=f'p={subspace_dims[i]}, GC')
 
-for i, curve in enumerate(non_gc_info):
-    xs = [pt[0] for pt in curve]
-    ys = [pt[1] for pt in curve]
-    color = colors[i % len(colors)]
-    plt.semilogy(xs, ys, linestyle='-', color=color,
-             label=f'p={subspace_dims[i]}, non-GC')
+# for i, curve in enumerate(non_gc_info):
+#     xs = [pt[0] for pt in curve]
+#     ys = [pt[1] for pt in curve]
+#     color = colors[i % len(colors)]
+#     plt.semilogy(xs, ys, linestyle='-', color=color,
+#              label=f'p={subspace_dims[i]}, non-GC')
 
 plt.xlabel('Function evaluations')
 plt.ylabel('Objective value')

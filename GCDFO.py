@@ -9,22 +9,22 @@ class gcdfo:
         self.n = len(x0)
         self.p = p or self.n
 
-        # default options
+        # default options (unused options are commented out from Liyuans code)
         self.options = {
             'alg_model': 'quadratic',
             'alg_TR': 'ball',
             'alg_TRsub': 'exact',
-            'sample_initial': self.p + 1,
+            # 'sample_initial': (self.p+1)*(self.p+2)//2,
             'sample_min': int((self.p+1) * 1.1),
             'sample_max': min(3000, (self.p+1)*(self.p+2)//2),
-            'sample_toremove': 10,
+            # 'sample_toremove': 10, (originally part of autodelete)
             'tr_delta': 1.0,
             'tr_toaccept': 0.0,
             'tr_toexpand': 0.5,
             'tr_toexpand2': 0.5,
             'tr_expand': 1.3,
             'tr_toshrink': -5e-3,
-            'tr_shrink': 0.95,
+            'tr_shrink': 0.65,
             'stop_iter': 2000,
             'stop_nfeval': 2000,
             'stop_delta': 1e-6,
@@ -46,6 +46,7 @@ class gcdfo:
             'iteration': 0, 
             'success': 0, 
             'nfeval': 0,
+            'lagrange_step': 0,
             'best_objectives': [],  # Track best objective at each evaluation
         }
 
@@ -61,14 +62,19 @@ class gcdfo:
     # -----------------------------
     def ask(self, nAsk=1):
         idx = np.isnan(self.samp.fY).argmax()
+        # print("Index Here")
+        # print(idx)
         return [self.samp.Y[idx]]
 
     def tell(self, X, fX):
+        # all elements are equal to the first? 
         assert np.all(X == X[0])
+        # print("X HERE")
+        # print(X)
         idx = np.all(self.samp.Y == X[0], axis=1).argmax()
         self.samp.fY[idx] = np.mean(fX)
         self.info['nfeval'] += 1
-        
+        # print("function evals:{}".format(self.info['nfeval']))
         self.info['best_objectives'].append((self.info['nfeval'] + self.p, np.nanmin(self.samp.fY)))
 
         if np.any(np.isnan(self.samp.fY)):
@@ -81,7 +87,16 @@ class gcdfo:
     # -----------------------------
     def __suggest(self):
         if self.info['iteration'] == 0:
+            # Takes the smallest value in the sample as the center
             self.model.center = self.samp.Y[np.nanargmin(self.samp.fY)]
+            # Model center
+            print("Initialization: Iteration 0")
+            print("---------------")
+            print(self.model.center)
+            print(self.samp.Y)
+            print(self.samp.fY)
+            print("---------------")
+            print("")
             self.model.delta = self.options['tr_delta']
 
             if self.options['verbosity'] >= 2:
@@ -92,52 +107,77 @@ class gcdfo:
                               np.nanmin(self.samp.fY),
                               self.model.delta,
                               self.samp.m))
-            self._success = 1
-        else:
-            # predicted vs actual reduction
+                print()
+        elif not self.info['lagrange_step']:
+            # actual vs predicted reduction
             rho = (self.model.c - self.samp.fY[-1]) / self.info['predicted_decrease']
+            print("f(x_curr):{}".format(self.model.c))
             stepSize = np.linalg.norm(self.samp.Y[-1] - self.model.center)
             stepSize2delta = stepSize / self.model.delta
+            print("Current Interpolation Set")
+            print("---------------------")
+            print(self.samp.Y)
+            print(self.samp.fY)
 
+            print("Current model center: {}".format(self.model.center))
             if rho >= self.options['tr_toaccept'] and \
-               np.linalg.norm(self.model.g) >= self.options['tr_toexpand2'] * self.model.delta:
+                np.linalg.norm(self.model.g) >= self.options['tr_toexpand2'] * self.model.delta:
                 self._success = 1
                 self.info['success'] += 1
                 self.model.center = self.samp.Y[-1]
-                self.samp.auto_delete(self.model, self.options)
+                print("New model center: {}".format(self.model.center))
+                self.samp.delete_furthest(self.model, self.options)
                 self.samp._updateQR()
-            else:
+                self.model.delta *= self.options['tr_expand']
+            else:  # geometry improvement only if step unsuccessful
                 self._success = 0
+                if self.geom_correcting:
+                    if self.samp.m <= ((self.p+1) * (self.p+2)) // 2:
+                        print("GEOM CORRECTING: adding point")
+                        pass
+                    elif self.samp.has_point_greater_delta(self.model, self.options):
+                        print("GEOM CORRECTING: deleting furthest")
+                        self.samp.delete_furthest(self.model, self.options)
+                    else:
+                        bad_idx, geom_point = self.samp.improve_geometry(self.model.center, self.samp.Q, self.model.delta)
+                        if geom_point is not None:
+                            # Throw away trial step computed
+                            self.samp.delete_point(self.samp.m - 1)
+                            self.samp.delete_point(bad_idx)
+                            self.samp.addpoint_secondlast(geom_point)
 
-            self.model.update_delta(rho, stepSize2delta, self.options)
-
+                            self.info['lagrange_step'] = 1
+                            print("GEOM CORRECTING: lagrange")
+                        else:
+                            print("Unsuccessful, but geometry good")
+                            self.model.delta *= self.options['tr_shrink']
+                            self.samp.delete_point(self.samp.m - 1)
+                            self.samp._updateQR()
+                        print()
+            
             if self.options['verbosity'] >= 2:
                 print("| {:5d} | {} | {:11.5e} | {:9.6f} | {:9.6f} | {} |"
                       .format(self.info['iteration'],
                               self._success,
-                              self.samp.fY[-1],
+                              np.nanmin(self.samp.fY),
                               self.model.delta,
                               rho,
                               self.samp.m))
+        else:
+            self.info['lagrange_step'] = 0
 
-        # fit model
-        self.model.fit(self.samp)
 
-        # geometry improvement only if step unsuccessful
-        if self.geom_correcting:
-            if not self._success:
-                geom_point = self.samp.improve_geometry(self.model.center, self.samp.Q, self.model.delta)
-                if geom_point is not None:
-                    self.samp.auto_delete(self.model, self.options)
-                    self.samp.addpoint(geom_point)
-                else:
-                    #self.samp._updateQR()
-                    pass
 
-        # solve trust-region subproblem
-        x1, self.info['predicted_decrease'] = self.model.minimize(self.samp)
-        self.samp.addpoint(x1)
-        self.info['iteration'] += 1
+        if not self.info['lagrange_step']:
+            # fit model
+            self.model.fit(self.samp)
+
+            # solve trust-region subproblem
+            x1, self.info['predicted_decrease'] = self.model.minimize(self.samp)
+            self.samp.addpoint(x1)
+            self.info['iteration'] += 1
+            print()
+            print("Iteration: {}".format(self.info['iteration']))
 
     # -----------------------------
     # STOPPING CRITERIA
@@ -183,7 +223,7 @@ class gcdfo:
         optimizer = cls(x0, p, options, geom_correcting)
 
         while True:
-            x = optimizer.ask()
+            x = optimizer.ask() # Reurns the largest empty index
             fx = [obj(x[0])]
             optimizer.tell(x, fx)
             if optimizer._stop():

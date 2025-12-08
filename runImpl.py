@@ -25,26 +25,28 @@ np.random.seed(42)
 func = sphere
 
 # starting point
-x0 = np.ones(10) * 2
+n = 2
+p = 2
+x0 = np.ones(n) * 2
 #x0 = np.repeat(np.array([[-1.2, 1]]), 5, axis=0).flatten()
 
 # overwrite default settings
 customOptions = {'alg_model': 'quadratic',
                 'alg_TRsub': 'exact',
                 'tr_delta': 0.5,
-                'sample_toremove': 1,
-                'stop_iter': 10000,
+                'stop_iter': 25,
+                'stop_nfeval': 25,
                 'stop_predict': 0.,
-                'verbosity': -1,
+                'verbosity': 2,
                 }
-print("Hello")
+
 # optimization with class function
-p = len(x0) // 3
+
 x, fx, info = gcdfo.optimize(func, x0, p, customOptions)
 
 # print result
 print("Printing result for function " + func.__name__ + ":")
 print("best point: {}, with obj: {:.6f}".format(
     np.around(x, decimals=5), float(fx)))
-print("hello")
+# print("hello")
 # print(info['best_objectives'])
