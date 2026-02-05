@@ -1,12 +1,10 @@
 """This file executes the derivative free optimization (DFO) solver to
-minimize a blackbox function.
-
-User is required to import a blackbox function, and provide a
-starting point. User can overwrite the default algorithm and/or the
-default parameters used in the solver.
 """
 import os, sys, inspect
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
+from matplotlib.patches import Circle
+
 cmd_subfolder = os.path.realpath(os.path.abspath(os.path.join(os.path.split(inspect.getfile( inspect.currentframe() ))[0],"Python3")))
 if cmd_subfolder not in sys.path:
     sys.path.insert(0, cmd_subfolder)
@@ -26,7 +24,7 @@ np.random.seed(42)
 oracle = Oracle(rosen)
 
 # starting point
-n = p = 10
+n = p = 3
 x0 = -1.5 * np.ones(n)
 #x0 = np.repeat(np.array([[-1.2, 1]]), 5, axis=0).flatten()
 
@@ -38,7 +36,7 @@ customOptions = {'alg_model': 'quadratic',
                 'tr_toexpand': 0.5,
                 'tr_expand': 1.3,
                 'tr_shrink':0.65,
-                'stop_iter': 1500,
+                'stop_iter': 1000,
                 'stop_nfeval': 1500,
                 'stop_predict': 0.,
                 'verbosity': 2
@@ -46,17 +44,17 @@ customOptions = {'alg_model': 'quadratic',
 
 # optimization with class function
 x, fx, info = gcdfo.optimize(x0, oracle, p, customOptions)
+final_samples = info["sample"]
+hessian_norms = info['hessian_norms'];
 
-# Collect convergence information and plot against iteration
-objvals = [float(info["iteration_info"][i][2]) for i in range(len(info["iteration_info"]))]
-plt.semilogy(objvals)
+
+# -----------------------------
+# Plot contour + points
+# -----------------------------
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.plot(hessian_norms)
 plt.xlabel('iteration')
-plt.ylabel('Objective value')
-plt.title('Rosenbrock convergence plot')
+plt.ylabel('Hessian norm')
+plt.title('Hessian norms for Rosenbrock')
+print(sorted(hessian_norms))
 plt.show()
-# print result
-# print("Printing result for function " + func.__name__ + ":")
-print("best point: {}, with obj: {:.6f}".format(
-    np.around(x, decimals=5), float(fx)))
-# print("hello")
-# print(info['best_objectives'])

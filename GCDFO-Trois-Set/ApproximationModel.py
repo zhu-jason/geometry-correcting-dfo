@@ -1,6 +1,7 @@
 import numpy as np
 from trust_sub import *
 import copy
+import cvxpy as cp
 
 class ApproximationModel:
     """Quadratic or linear model in full space or subspace."""
@@ -24,8 +25,8 @@ class ApproximationModel:
         m, p = samp.mTotal, samp.p
 
         # Fit the gradient approximation
-        g, *_ = np.linalg.lstsq(samp.Y.points, samp.Y.values - samp.fc, rcond=None)                
-        
+        g, *_ = np.linalg.lstsq(samp.Y.points, samp.Y.values - samp.fc, rcond=None)
+
         # Fit Hessian approximation
         n_quad = p * (p + 1) // 2
         A = np.zeros((n_quad, n_quad))
@@ -45,17 +46,14 @@ class ApproximationModel:
         k = 0
         for i in range(p):
             for j in range(i, p):
-                H[i, j] = H[j, i] = theta[k] 
+                H[i, j] = H[j, i] = theta[k]
                 k += 1
         # lift to full space
         self.g = g
-        self.H = H / np.linalg.norm(H, ord=2)
-        # self.H = H 
-    
-
+        self.H = H
 
     def fit_full_quadratic(self, samp):
-        # Fits a possibly underdetermined quadratic 
+        # Fits a possibly underdetermined quadratic
         p = samp.p
         num_points_without_c = samp.mTotal - 1
         if samp.Z.points.size == 0:
@@ -76,20 +74,19 @@ class ApproximationModel:
                 else:
                     A[:, idx] = X[:, i] * X[:, j]
                 idx += 1
-        
+
         theta, *_ = np.linalg.lstsq(A, fX - samp.fc, rcond=None)
 
         Hsub = np.zeros((p, p))
         k = p
         for i in range(p):
             for j in range(i, p):
-                Hsub[i, j] = Hsub[j, i] = theta[k] 
+                Hsub[i, j] = Hsub[j, i] = theta[k]
                 k += 1
 
         # lift to full space
         self.g = theta[0:p]
-        self.H =  samp.Q @ Hsub @ samp.Q.T 
-
+        self.H =  samp.Q @ Hsub @ samp.Q.T
 
     # -------------------------------------------
     # COMPUTE TRUST REGION STEP

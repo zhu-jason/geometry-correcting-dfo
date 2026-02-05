@@ -11,12 +11,13 @@ class Sample:
         p       : subspace dimension (<= n)
         options : dict with options, must contain 'tr_delta'
         """
-        
+
         self.n = len(x0)
         self.p = p
         self.oracle = oracle
         self.Q = np.eye(p)
         self.big_lambda = options['big_lambda']
+        self.options = options
 
         # Center
         self.center = x0
@@ -30,7 +31,7 @@ class Sample:
         # Y_pts = options['tr_delta'] * np.eye(self.n)
         Y_vals = oracle(Y_pts + self.center)
         self.Y = InterpolationSet(Y_pts, Y_vals, p)
-        
+
         # Hessian Interpolation Set, (p)*(p+1)/2 points sampled from delta sphere
         num_z_points = (p + 1) * p // 2
         random_vectors = np.random.randn(num_z_points, p)
@@ -42,16 +43,16 @@ class Sample:
         # Z_pts = np.array([])
         # Z_vals = np.array([])
         self.Z = InterpolationSet(Z_pts, Z_vals, p)
-        
+
 
     @property
     def mY(self):
         return len(self.Y)
-    
+
     @property
     def mZ(self):
         return len(self.Z)
-    
+
     @property
     def mTotal(self):
         return 1 + len(self.Y) + len(self.Z)
@@ -61,12 +62,12 @@ class Sample:
         Qfull, _ = np.linalg.qr(A)
         self.Q = Qfull[:, :self.p]
 
-        # FOR DEBUG PURPOSES ONLY 
+        # FOR DEBUG PURPOSES ONLY
         self.Q = np.eye(self.n)
 
     def get_lin_lagrange_coef(self):
         try:
-            L_coefs = np.linalg.inv(self.Y.points) 
+            L_coefs = np.linalg.inv(self.Y.points)
         except np.linalg.LinAlgError:
             print("WEE WOO Linear Lagrange Polynomial Singular")
             L_coefs = np.linalg.pinv(self.Y.points)

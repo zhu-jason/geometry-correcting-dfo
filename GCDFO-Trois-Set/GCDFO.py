@@ -10,7 +10,7 @@ class gcdfo:
         self.p = p or self.n
         self.oracle = oracle
 
-        # default options 
+        # default options
         self.options = {
             'alg_model': 'quadratic',
             'alg_TR': 'ball',
@@ -25,7 +25,8 @@ class gcdfo:
             'stop_delta': 1e-6,
             'stop_predict': 1e-8,
             'verbosity': 2,
-            'big_lambda': 2
+            'big_lambda': 2,
+            'tr_final': 1
         }
 
         if options:
@@ -35,20 +36,23 @@ class gcdfo:
                 self.options[key] = options[key]
 
         self.info = {
-            'start_time': time.time(), 
-            'iteration': 0, 
-            'success': 0, 
+            'start_time': time.time(),
+            'iteration': 0,
+            'success': 0,
             'nfeval': 0,
             'lagrange_step': 0,
             'iteration_info': [],  # Track best objective at each evaluation
+            'sample': [],
+            'hessian_norms': []
         }
 
         # initial sample
         self.samp = Sample(x0, oracle, self.p, self.options)
         self.model = ApproximationModel(self.p, self.options)
-        
+
         # Track initial best (will be updated as evaluations come in)
         self._best_obj = np.inf
+
 
     # -----------------------------
     # CLASS METHOD: OPTIMIZE
@@ -62,28 +66,32 @@ class gcdfo:
             opt.info['iteration'] += 1
             opt.info["nfeval"] = oracle.get_evaluation_count()
             print("Iteration: {}".format(opt.info['iteration']))
-            print("---------------")
-            print("Center:")
-            print(opt.samp.center)
-            print("Center Value")
-            print(opt.samp.fc)
-            print("Linear Interpolation Set:")
-            print(opt.samp.Y.points)
-            print("Linear Function Values:")
-            print(opt.samp.Y.values)
-            print("Hessian Interpolation Set:")
-            print(opt.samp.Z.points)
-            print("Hessian Function Values:")
-            print(opt.samp.Z.values)
-            print("---------------")
-            print(opt.oracle.evaluation_count)
-            opt.info["iteration_info"].append((oracle.get_evaluation_count, opt.samp.center, opt.samp.fc))
-            
+            #print("---------------")
+            # print("Center:")
+            # print(opt.samp.center)
+            # print("Center Value")
+            # print(opt.samp.fc)
+            # print("Linear Interpolation Set:")
+            # print(opt.samp.Y.points)
+            # print("Linear Function Values:")
+            # print(opt.samp.Y.values)
+            # print("Hessian Interpolation Set:")
+            # print(opt.samp.Z.points)
+            # print("Hessian Function Values:")
+            # print(opt.samp.Z.values)
+            # print("---------------")
+            #print(opt.oracle.evaluation_count)
+            opt.info["iteration_info"].append((oracle.get_evaluation_count(), opt.samp, opt.samp.fc))
+
             # Build Model
+
+            # try opt.model.fit(opt.samp)
+            #opt.model.fit(opt.samp)
             opt.model.fit_full_quadratic(opt.samp)
+            opt.info['hessian_norms'].append(np.linalg.norm(opt.model.H,2))
             step, opt.info['predicted_decrease'] = opt.model.minimize(opt.samp)
-            print("Predicted Decrease")
-            print(opt.info['predicted_decrease'])
+            # print("Predicted Decrease")
+            # print(opt.info['predicted_decrease'])
 
             # print("MODEL INFO")
             # print("--------------")
@@ -100,7 +108,7 @@ class gcdfo:
                 # Logging
                 opt._success = 1
                 opt.info['success'] += 1
-                
+
                 # Update Sets
                 y_max_idx, y_furthest = opt.samp.Y.get_furthest(step)
                 z_max_idx, z_furthest = opt.samp.Z.get_furthest(step)
@@ -138,11 +146,11 @@ class gcdfo:
                     opt.samp.Y.delete_point(far_idx)
                     opt.samp.Y.add_point(step, value=f_new)
                     improve_flag = 1
-                    print()
-                    print("GC: Replace far point")
-                    print()
+                    # print()
+                    # print("GC: Replace far point")
+                    # print()
                 else:
-                    # Lagrange polynomial 
+                    # Lagrange polynomial
                     L_coefs = opt.samp.get_lin_lagrange_coef()
 
                     # GC by replacing a point with Lag-poly
@@ -153,9 +161,9 @@ class gcdfo:
                         kicked_list.append(opt.samp.Y[idx])
                         opt.samp.Y.delete_point(idx)
                         opt.samp.Y.add_point(step, value=f_new)
-                        print()
-                        print("GC: Replace by Lagrange poly")
-                        print()
+                        # print()
+                        # print("GC: Replace by Lagrange poly")
+                        # print()
                     else:
                         kicked_list.append((step, f_new))
 
@@ -164,16 +172,16 @@ class gcdfo:
                     idx = np.argmax(norms)
                     direction = L_coefs[:, idx]
                     lag_step = (direction / np.linalg.norm(direction)) * opt.model.delta
-                    
+
                     if direction @ lag_step > opt.options['big_lambda']:
                         kicked_list.append(opt.samp.Y[idx])
                         opt.samp.Y.delete_point(idx)
                         lag_value = oracle(opt.samp.center + lag_step)
                         opt.samp.Y.add_point(lag_step, value = lag_value)
                         improve_flag = 1
-                        print()
-                        print("GC: Replace bad point by Lagrange poly")
-                        print()
+                        # print()
+                        # print("GC: Replace bad point by Lagrange poly")
+                        # print()
 
                 for kicked_point, kicked_val in kicked_list:
                     if opt.samp.mZ < (p * (p+1))// 2:
@@ -183,10 +191,10 @@ class gcdfo:
                         if np.linalg.norm(far_point) > np.linalg.norm(kicked_point):
                             opt.samp.Z.delete_point(far_idx)
                             opt.samp.Z.add_point(kicked_point, kicked_val)
-                        
-                if improve_flag == 0:    
-                    print("SHRINK")
-                    print("SHRINK")
+
+                if improve_flag == 0:
+                    # print("SHRINK")
+                    # print("SHRINK")
                     opt.model.delta *= opt.options["tr_shrink"]
 
 
@@ -194,17 +202,19 @@ class gcdfo:
 
             # Check Stopping Criteria
             if opt._stop():
+                opt.info['sample'] = opt.samp
+                opt.info['tr_final'] = opt.model.delta
                 break
-            print()
-            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-            print()
+            # print()
+            # print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            # print()
         # idx = np.nanargmin(opt.samp.Y.values)
         # return opt.samp.Y.points[idx], opt.samp.Y.values[idx], opt.info
 
         # idx = np.nanargmin(opt.samp.Y.values)
         return opt.samp.center, opt.samp.fc, opt.info
-        
-        
+
+
     # -----------------------------
     # STOPPING CRITERIA
     # -----------------------------
