@@ -72,11 +72,15 @@ for iter in range(0, 10, 1):
     center1 = final_samples.center[0]
     center2 = final_samples.center[1]
 
-    Y1 = final_samples.Y.points[:, 0]
-    Y2 = final_samples.Y.points[:, 1]
+    # Shift points onto world coordinates
+    Ypts = final_samples.Y.points + final_samples.center
+    Zpts = final_samples.Z.points + final_samples.center
 
-    Z1 = final_samples.Z.points[:, 0]
-    Z2 = final_samples.Z.points[:, 1]
+    Y1 = Ypts[:, 0]
+    Y2 = Ypts[:, 1]
+
+    Z1 = Zpts[:, 0]
+    Z2 = Zpts[:, 1]
 
     # -----------------------------
     # Plot contour + points
