@@ -163,6 +163,7 @@ def rfzero(x, itbnd, eigval, alpha, delta, tol):
         else:
             # interpolation
             s = float(fb)/fa
+            print(fb)
             if a == c:
                 # linear interpolation
                 p = 2.0 * m * s

@@ -23,7 +23,7 @@ from Oracle import Oracle
 
 
 # Choose function in {arwhead, rosen, sphere, ackley, booth, beale, bukin}
-func = bukin
+func = rosen
 oracle = Oracle(func)
 
 # Set starting point
@@ -49,6 +49,8 @@ customOptions = {'alg_model': 'quadratic',
 x, fx, info = gcdfo.optimize(x0, oracle, p, customOptions)
 final_samples = info["sample"]
 eval_history = oracle.get_evaluation_history()
+fvals = [eval_history[i][1] for i in range(len(eval_history))]
+best_fvals = np.minimum.accumulate(fvals)
 
 # x0 = np.repeat(np.array([[-1.2, 1]]), 2, axis=0).flatten()
 
@@ -79,8 +81,6 @@ fx = optimizer.samp.fY[idx]
 dfo_tr_history = optimizer.info['best_obj']
 plt.semilogy(dfo_tr_history, label="DFOTR")
 
-fvals = [eval_history[i][1] for i in range(len(eval_history))]
-best_fvals = np.minimum.accumulate(fvals)
 plt.semilogy(best_fvals, label="GCDFO")
 plt.title('bukin function n = 10')
 plt.ylabel('log objective value')

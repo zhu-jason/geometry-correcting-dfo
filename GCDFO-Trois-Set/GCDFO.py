@@ -86,8 +86,8 @@ class gcdfo:
             # Build Model
 
             # try opt.model.fit(opt.samp)
-            opt.model.fit(opt.samp)
-            #opt.model.fit_full_quadratic(opt.samp)
+            #opt.model.fit(opt.samp)
+            opt.model.fit_full_quadratic(opt.samp)
             opt.info['hessian_norms'].append(np.linalg.norm(opt.model.H,2))
             step, opt.info['predicted_decrease'] = opt.model.minimize(opt.samp)
             # print("Predicted Decrease")

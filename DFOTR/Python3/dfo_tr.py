@@ -5,11 +5,11 @@ from .Sample import Sample
 from .ApproximationModel import ApproximationModel
 
 class dfo_tr:
-    """ This is a derivative free trust region optimization algorithm. 
+    """ This is a derivative free trust region optimization algorithm.
         This algorithm is designed to minimize blackbox functions.
 
-        Written by Liyuan Cao @Lehigh University in 2020, under the supervision 
-        of Dr. Katya Scheinberg. 
+        Written by Liyuan Cao @Lehigh University in 2020, under the supervision
+        of Dr. Katya Scheinberg.
     """
 
     def __init__(self, x0, options=None):
@@ -32,7 +32,7 @@ class dfo_tr:
             'tr_toaccept': 0.1, # rho level to accept new point
             'tr_toexpand': 0.5, # rho level to expand radius
             'tr_expand': 1.3,   # radius expansion factor
-            'tr_toshrink': -5e-3, 
+            'tr_toshrink': -5e-3,
             'tr_shrink': 0.95,  # radius shrink factor
             # stopping crieria parameters
             'stop_iter': 2000,  # maximum number of iterations
@@ -56,11 +56,12 @@ class dfo_tr:
         self.info['iteration'] = 0
         self.info['success'] = 0
         self.info['nfeval'] = 0
+        self.info['best_obj'] = [np.inf]
 
-        # Create initial sample. 
+        # Create initial sample.
         self.samp = Sample(x0, self.options)
 
-        # Initialize model. 
+        # Initialize model.
         self.model = ApproximationModel(self.n, self.options)
 
     def ask(self, nAsk=1):
@@ -75,13 +76,14 @@ class dfo_tr:
     def tell(self, X, fX):
         assert np.all(X == X[0]), \
             'All the evaluated points in one batch must be the same point. '
-        
-        # Store the newly acquired function value. 
+
+        # Store the newly acquired function value.
         idx = np.all(self.samp.Y==X[0], axis=1).argmax()
         self.samp.fY[idx] = np.mean(fX)
         self.info['nfeval'] += 1
+        self.info['best_obj'].append(min(self.info['best_obj'][-1], self.samp.fY[idx]))
 
-        # If there is still a point that is not evaluated, we go to evaluate it. 
+        # If there is still a point that is not evaluated, we go to evaluate it.
         if np.any(np.isnan(self.samp.fY)):
             return
 
@@ -99,7 +101,7 @@ class dfo_tr:
         # print(self.samp.fY)
         if self.info['iteration'] == 0:
             # Put center of the initial trust region at the point in the
-            #  initial sample with the lowest function value. 
+            #  initial sample with the lowest function value.
             self.model.center = self.samp.Y[-1]
             self.model.delta = self.options['tr_delta']
 
@@ -113,16 +115,16 @@ class dfo_tr:
                             self.samp.m
                             ))
 
-        else: 
-            # Calculate the ratio between the actual reduction in function 
-            # value and the reduction predicted the approximation model. 
+        else:
+            # Calculate the ratio between the actual reduction in function
+            # value and the reduction predicted the approximation model.
             rho = (self.model.c - self.samp.fY[-1]) / self.info['predicted_decrease']
 
             # Calculate the ratio between the step size and the trust region radius.
             stepSize = np.linalg.norm(self.samp.Y[-1] - self.model.center)
             stepSize2delta = stepSize / self.model.delta
 
-            # Decide whether to move the iterate. 
+            # Decide whether to move the iterate.
             if rho >= self.options['tr_toaccept']:
                 self._success = 1
                 self.info['success'] += 1
@@ -130,10 +132,10 @@ class dfo_tr:
             else:
                 self._success = 0
 
-            # Update the trust region radius. 
+            # Update the trust region radius.
             self.model.update_delta(rho, stepSize2delta, self.options)
 
-            # Remove points that are too far away from the current TR. 
+            # Remove points that are too far away from the current TR.
             self.samp.auto_delete(self.model, self.options)
 
             # print iteration report
@@ -142,18 +144,18 @@ class dfo_tr:
                     .format(self.info['iteration'],
                             self._success,
                             self.samp.fY[-1],
-                            self.model.delta, 
-                            rho, 
+                            self.model.delta,
+                            rho,
                             self.samp.m
                             ))
 
         # build an approximation model
         self.model.fit(self.samp)
 
-        # Solve the trust region subproblem. 
+        # Solve the trust region subproblem.
         x1, self.info['predicted_decrease'] = self.model.minimize()
 
-        # Add the new point to the sample set. 
+        # Add the new point to the sample set.
         self.samp.addpoint(x1)      # the new point
         self.info['iteration'] += 1
 
@@ -174,7 +176,7 @@ class dfo_tr:
         elif self.info['predicted_decrease'] <= self.options['stop_predict']:
             STOP = True
             print('Exiting because the minimum predicted decrease is reached.')
-        
+
         if STOP and self.options['verbosity'] >= 1:
             print('***************** FINAL REPORT ************************')
             self.info['end_time'] = time.time()
@@ -183,8 +185,8 @@ class dfo_tr:
             print("|{:5d}| {:5d}  | {:5d} | {:11.5e} |   {:9.6f}   |       {:11.5e}      |\n"
                 .format(self.info['iteration'],
                         self.info['success'],
-                        self.info['nfeval'], 
-                        min(self.samp.fY), 
+                        self.info['nfeval'],
+                        min(self.samp.fY),
                         self.model.delta,
                         self.info['predicted_decrease']
                         ))
